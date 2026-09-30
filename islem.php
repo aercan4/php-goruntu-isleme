@@ -1,267 +1,529 @@
-<?php 
-if(isset($_FILES['dosya']) && !empty($_FILES['dosya']['name'])):
+<?php
 
- $hata = $_FILES['dosya']['error'];
-if($hata != 0) {
-  die('dosyanız 3mb dan büyük olamaz.');
-} else {
-  $boyut = $_FILES['dosya']['size'];
-  if($boyut > (1024*1024*10)){
-    die('Dosya 10MB den büyük olamaz.');
-  } else {
-   if($_FILES['dosya']['type'] != 'image/jpeg' && $_FILES['dosya']['type'] != 'image/png'){
-     die('Sadece Jpg ve Png yükleyiniz');
-   }else {
+if (isset($_FILES['dosya']) && !empty($_FILES['dosya']['name'])):
+
+    $hata = $_FILES['dosya']['error'];
+
+    if ($hata != 0) {
+        die('Dosya yüklenirken bir hata oluştu.');
+    }
+
+    // Dosya boyutu kontrolü
+    $boyut = $_FILES['dosya']['size'];
+
+    if ($boyut > (1024 * 1024 * 10)) {
+        die('Dosya 10MB den büyük olamaz.');
+    }
+
+    // Gerçek dosya tipini kontrol et
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime_type = finfo_file($finfo, $_FILES['dosya']['tmp_name']);
+    finfo_close($finfo);
+
+    if ($mime_type !== 'image/jpeg' && $mime_type !== 'image/png') {
+        die('Sadece JPG ve PNG yükleyiniz.');
+    }
+
+    // Yüklenen görselin geçici dosya yolu
     $resim = $_FILES['dosya']['tmp_name'];
 
-  }
-}
-}
+    /*
+     * Form değerleri
+     */
 
-?>
-<?php
-//print_r($_POST);
-/* Filtre İşlemleri*/
-$filtre = $_POST['filter'];
+    // Filtre
+    $filtre = isset($_POST['filter']) ? $_POST['filter'] : 'none';
 
-/* Filtre İşlemleri*/
-$yansima = $_POST['rebound'];
+    // Yansıma
+    $yansima = isset($_POST['rebound']) ? $_POST['rebound'] : 'none';
 
-/* Döndürme İşlemleri*/
-$dondurme = $_POST['rotate'];
+    // Döndürme
+    $dondurme = isset($_POST['rotate']) ? $_POST['rotate'] : 'none';
 
-/* Dosya Tipi*/
-$dosya_tipi = $_POST['dosyatipi'];
+    // Çıktı dosya tipi
+    $dosya_tipi = isset($_POST['dosyatipi']) ? $_POST['dosyatipi'] : 'jpeg';
 
-/* Ölçeklendirme İşlemleri */
-$boyutlar = getimagesize($resim);
-$image_size_x = $boyutlar[0];
-$image_size_y = $boyutlar[1];
-$scale_percent = $_POST['scale'];
-$image_size_x = ($image_size_x * $scale_percent) / 100;
-$image_size_y = ($image_size_y * $scale_percent) / 100;
+    // Sadece izin verilen çıktı formatları
+    if ($dosya_tipi !== 'jpeg' && $dosya_tipi !== 'png') {
+        $dosya_tipi = 'jpeg';
+    }
 
+    /*
+     * Ölçeklendirme
+     */
 
+    $boyutlar = getimagesize($resim);
 
-?>
-<?php
+    if (!$boyutlar) {
+        die('Görsel okunamadı.');
+    }
 
-require 'class/claviska/SimpleImage.php';
+    $image_size_x = $boyutlar[0];
+    $image_size_y = $boyutlar[1];
 
-// Ignore notices
-error_reporting(E_ALL & ~E_NOTICE);
+    $scale_percent = isset($_POST['scale']) ? (int) $_POST['scale'] : 100;
 
-try {
+    // Güvenlik için 1-100 arasında tut
+    $scale_percent = max(1, min(100, $scale_percent));
 
-  // SimpleImage Sınıfından yeni bir nesne oluşturuyoruz.
-  $image = new \claviska\SimpleImage();
-
-  // Resmi Seçiyoruz.
-  $image->fromFile($resim);
-
-  /* Filtre İşlemleri */
-  switch ($filtre) {
-   case 'desaturate':
-   $image->desaturate();
-   break;
-   case 'emboss':
-   $image->emboss();
-   break;
-   case 'edgedetect':
-   $image->edgedetect();
-   break;
-   case 'invert':
-   $image->invert();
-   break;
-   case 'pixelate':
-   $image->pixelate(50);
-   break;
-   case 'sepia':
-   $image->sepia();
-   break;
-   case 'canny':
-   $image->edgedetect();
-  $image->darken(50);
-   break;
-   case 'sharpen':
-    $image->sharpen(70);
-     break;
-   default:
-     # code...
-   break;
- }
-
- // Yansıma İşlemleri
-
- switch ($yansima) {
-
-   case 'rebound_x':
-   $image->flip('x') ;                         
-   break;
-
-   case 'rebound_y':
-   $image->flip('y');                          
-   break;
-
-   default:
-     # code...
-   break;
- }
-
-  // Döndürme İşlemleri
-
- switch ($dondurme) {
-
-   case 'rotate90':
-   $image->rotate('90');                         
-   break;
-
-   case 'rotate180':
-   $image->rotate('180');                         
-   break;
-
-   case 'rotate270':
-   $image->rotate('270');                         
-   break;
-
-   default:
-     # code...
-   break;
- }
-
- $image->resize($image_size_x,$image_size_y);
- $image->toFile('image'.strtotime("now").'.'.$dosya_tipi, 'image/'.$dosya_tipi); 
-
- ?>
- <!DOCTYPE html>
- <html lang="en">
- <head>
-   <meta charset="UTF-8">
-   <title></title>
-   <link rel="stylesheet" type="text/css" href="./dist/css/bootstrap.min.css">
-   <link rel="stylesheet" type="text/css" href="./dist/css/style.css">
+    $image_size_x = round(($image_size_x * $scale_percent) / 100);
+    $image_size_y = round(($image_size_y * $scale_percent) / 100);
 
 
- </head>
- <body>
-   <div class="container">
-     <h1 class="text-center main_title">Dönüştürme Başarılı</h1>
-     <hr>
-     <div class="row">
-      <div class="col-lg-6">
-        <h4 class="mb-20">Input Image</h4>
-        <?php 
-        $imageData = file_get_contents($resim); 
+    /*
+     * SimpleImage
+     */
 
-        echo sprintf('<img class="mw-100"  src="data:image/png;base64,%s" />', base64_encode($imageData));
+    require 'class/claviska/SimpleImage.php';
+
+    // Ignore notices
+    error_reporting(E_ALL & ~E_NOTICE);
+
+    try {
+
+        // SimpleImage nesnesi
+        $image = new \claviska\SimpleImage();
+
+        // Yüklenen geçici görseli aç
+        $image->fromFile($resim);
+
+
+        /*
+         * Filtre İşlemleri
+         */
+
+        switch ($filtre) {
+
+            case 'desaturate':
+                $image->desaturate();
+                break;
+
+            case 'emboss':
+                $image->emboss();
+                break;
+
+            case 'edgedetect':
+                $image->edgedetect();
+                break;
+
+            case 'invert':
+                $image->invert();
+                break;
+
+            case 'pixelate':
+                $image->pixelate(50);
+                break;
+
+            case 'sepia':
+                $image->sepia();
+                break;
+
+            case 'canny':
+                $image->edgedetect();
+                $image->darken(50);
+                break;
+
+            case 'sharpen':
+                $image->sharpen(70);
+                break;
+
+            case 'none':
+            default:
+                break;
+        }
+
+
+        /*
+         * Yansıma İşlemleri
+         */
+
+        switch ($yansima) {
+
+            case 'rebound_x':
+                $image->flip('x');
+                break;
+
+            case 'rebound_y':
+                $image->flip('y');
+                break;
+
+            case 'none':
+            default:
+                break;
+        }
+
+
+        /*
+         * Döndürme İşlemleri
+         */
+
+        switch ($dondurme) {
+
+            case 'rotate90':
+                $image->rotate(90);
+                break;
+
+            case 'rotate180':
+                $image->rotate(180);
+                break;
+
+            case 'rotate270':
+                $image->rotate(270);
+                break;
+
+            case 'none':
+            default:
+                break;
+        }
+
+
+        /*
+         * Ölçeklendirme
+         */
+
+        $image->resize($image_size_x, $image_size_y);
+
+
+        /*
+         * İşlenmiş görseli PHP'nin geçici klasörüne yazıyoruz.
+         *
+         * Proje klasörüne /image klasörüne hiçbir dosya
+         * kaydedilmiyor.
+         */
+
+         $temp_dir = dirname($resim);
+
+         $temp_file = $temp_dir . '/image_' . uniqid() . '.' . $dosya_tipi;
+         
+         $image->toFile(
+             $temp_file,
+             'image/' . $dosya_tipi
+         );
+
+
+        /*
+         * Input görselini base64 olarak hazırlıyoruz.
+         */
+
+        $input_image_data = file_get_contents($resim);
+
+        if ($input_image_data === false) {
+            throw new Exception('Yüklenen görsel okunamadı.');
+        }
+
+        $input_base64 = base64_encode($input_image_data);
+
+
+        /*
+         * Output görselini base64 olarak hazırlıyoruz.
+         */
+
+        $output_image_data = file_get_contents($temp_file);
+
+        if ($output_image_data === false) {
+            throw new Exception('İşlenmiş görsel okunamadı.');
+        }
+
+        $output_base64 = base64_encode($output_image_data);
+
+
+        /*
+         * İş bittikten sonra geçici output dosyasını siliyoruz.
+         */
+
+        unlink($temp_file);
+
         ?>
-        <div class="olcu"><?=$boyutlar[0];?>x<?=$boyutlar[1];?></div>
 
-      </div>
-      <div class="col-lg-6">
-        <h4 class="mb-20">Output Image</h4>
+        <!DOCTYPE html>
+        <html lang="tr">
 
-        <img class="mw-100" src="./image<?=strtotime("now")?>.<?=$dosya_tipi?>" alt="">
-        <div class="olcu"><?=$image_size_x?>x<?=$image_size_y?></div>
+        <head>
 
-      </div>
-      <?php if($filtre == 'desaturate'): ?>
-        <div class="col-12" style="margin-top: 30px">
-          <h5>Grayscale Değer Kontrol Aracı</h5>
-          <form action="" class="grayscale_form">
-           <label for=""> R:  </label>
-           <input id="r_value" type="number" name="r_value" >
+            <meta charset="UTF-8">
 
-           <label for="">G: </label>
-           <input id="g_value" type="number" name="g_value" >
+            <title>Görüntü İşleme Sonucu</title>
 
-           <label for="">B: </label>
-           <input id="b_value" type="number" name="b_value" >
-           <span>Sonuç: </span> <span class="sonuc"></span>
-         </form> 
+            <link
+                rel="stylesheet"
+                type="text/css"
+                href="./dist/css/bootstrap.min.css"
+            >
 
-         <p>Formül: <i>Gray = (Red * 0.299 + Green * 0.587 + Blue * 0.114)</i></p>
+            <link
+                rel="stylesheet"
+                type="text/css"
+                href="./dist/css/style.css"
+            >
 
-       </div>
+        </head>
 
-     <?php  endif; ?>
-       <?php if($filtre == 'invert'): ?>
-        <div class="col-12" style="margin-top: 30px">
-          <h5>Invert Değer Kontrol Aracı</h5>
-          <form action="" class="invert_form">
-           <label for=""> R:  </label>
-           <input id="r_value" type="number" name="r_value" >
+        <body>
 
-           <label for="">G: </label>
-           <input id="g_value" type="number" name="g_value" >
+            <div class="container">
 
-           <label for="">B: </label>
-           <input id="b_value" type="number" name="b_value" >
-           <span>Sonuç: </span> <span class="sonuc"></span>
-         </form> 
+                <h1 class="text-center main_title">
+                    Dönüştürme Başarılı
+                </h1>
 
-         <p>Formül: <i>Invert = (255 - Red<sub>old</sub> , 255 - Green<sub>old</sub> , 255 - Blue<sub>old</sub> )</i></p>
+                <hr>
 
-       </div>
+                <div class="row">
 
-     <?php  endif; ?>
-    </div>
+                    <!-- INPUT IMAGE -->
+
+                    <div class="col-lg-6">
+
+                        <h4 class="mb-20">
+                            Input Image
+                        </h4>
+
+                        <img
+                            class="mw-100"
+                            src="data:<?=htmlspecialchars($mime_type)?>;base64,<?=$input_base64?>"
+                            alt="Input Image"
+                        >
+
+                        <div class="olcu">
+                            <?=$boyutlar[0];?>x<?=$boyutlar[1];?>
+                        </div>
+
+                    </div>
 
 
-  </div>
-  <script src="./dist/js/jquery-3.4.1.js"></script>
+                    <!-- OUTPUT IMAGE -->
 
- <script>
-  jQuery(document).ready(function($) {
+                    <div class="col-lg-6">
 
-    function grayscale_hesapla(){
-      var r_value = $('#r_value').val();
-      var g_value = $('#g_value').val();
-      var b_value = $('#b_value').val();
+                        <h4 class="mb-20">
+                            Output Image
+                        </h4>
 
-      var gray = r_value*0.299 + g_value*0.587 + b_value *0.114;
-      gray = Math.round(gray);
-      $('.sonuc').text('RGB('+gray+','+gray+','+gray+')');
+                        <img
+                            class="mw-100"
+                            src="data:image/<?=$dosya_tipi?>;base64,<?=$output_base64?>"
+                            alt="Output Image"
+                        >
+
+                        <div class="olcu">
+                            <?=$image_size_x?>x<?=$image_size_y?>
+                        </div>
+
+                    </div>
+
+
+                    <?php if ($filtre == 'desaturate'): ?>
+
+                        <div class="col-12" style="margin-top: 30px">
+
+                            <h5>
+                                Grayscale Değer Kontrol Aracı
+                            </h5>
+
+                            <form action="" class="grayscale_form">
+
+                                <label for="r_value">
+                                    R:
+                                </label>
+
+                                <input
+                                    id="r_value"
+                                    type="number"
+                                    name="r_value"
+                                    min="0"
+                                    max="255"
+                                >
+
+                                <label for="g_value">
+                                    G:
+                                </label>
+
+                                <input
+                                    id="g_value"
+                                    type="number"
+                                    name="g_value"
+                                    min="0"
+                                    max="255"
+                                >
+
+                                <label for="b_value">
+                                    B:
+                                </label>
+
+                                <input
+                                    id="b_value"
+                                    type="number"
+                                    name="b_value"
+                                    min="0"
+                                    max="255"
+                                >
+
+                                <span>
+                                    Sonuç:
+                                </span>
+
+                                <span class="sonuc"></span>
+
+                            </form>
+
+                            <p>
+                                Formül:
+                                <i>
+                                    Gray = (Red * 0.299 + Green * 0.587 + Blue * 0.114)
+                                </i>
+                            </p>
+
+                        </div>
+
+                    <?php endif; ?>
+
+
+                    <?php if ($filtre == 'invert'): ?>
+
+                        <div class="col-12" style="margin-top: 30px">
+
+                            <h5>
+                                Invert Değer Kontrol Aracı
+                            </h5>
+
+                            <form action="" class="invert_form">
+
+                                <label for="r_value">
+                                    R:
+                                </label>
+
+                                <input
+                                    id="r_value"
+                                    type="number"
+                                    name="r_value"
+                                    min="0"
+                                    max="255"
+                                >
+
+                                <label for="g_value">
+                                    G:
+                                </label>
+
+                                <input
+                                    id="g_value"
+                                    type="number"
+                                    name="g_value"
+                                    min="0"
+                                    max="255"
+                                >
+
+                                <label for="b_value">
+                                    B:
+                                </label>
+
+                                <input
+                                    id="b_value"
+                                    type="number"
+                                    name="b_value"
+                                    min="0"
+                                    max="255"
+                                >
+
+                                <span>
+                                    Sonuç:
+                                </span>
+
+                                <span class="sonuc"></span>
+
+                            </form>
+
+                            <p>
+                                Formül:
+                                <i>
+                                    Invert = (255 - Red<sub>old</sub>,
+                                    255 - Green<sub>old</sub>,
+                                    255 - Blue<sub>old</sub>)
+                                </i>
+                            </p>
+
+                        </div>
+
+                    <?php endif; ?>
+
+                </div>
+
+            </div>
+
+
+            <script src="./dist/js/jquery-3.4.1.js"></script>
+
+            <script>
+
+                jQuery(document).ready(function($) {
+
+                    function grayscale_hesapla() {
+
+                        var r_value = $('#r_value').val();
+                        var g_value = $('#g_value').val();
+                        var b_value = $('#b_value').val();
+
+                        var gray =
+                            r_value * 0.299 +
+                            g_value * 0.587 +
+                            b_value * 0.114;
+
+                        gray = Math.round(gray);
+
+                        $('.sonuc').text(
+                            'RGB(' + gray + ',' + gray + ',' + gray + ')'
+                        );
+                    }
+
+
+                    function invert_hesapla() {
+
+                        var r_value = $('#r_value').val();
+                        var g_value = $('#g_value').val();
+                        var b_value = $('#b_value').val();
+
+                        var r_value_new = 255 - r_value;
+                        var g_value_new = 255 - g_value;
+                        var b_value_new = 255 - b_value;
+
+                        $('.sonuc').text(
+                            'RGB(' +
+                            r_value_new + ',' +
+                            g_value_new + ',' +
+                            b_value_new +
+                            ')'
+                        );
+                    }
+
+
+                    $('.grayscale_form input').keyup(function() {
+                        grayscale_hesapla();
+                    });
+
+
+                    $('.invert_form input').keyup(function() {
+                        invert_hesapla();
+                    });
+
+                });
+
+            </script>
+
+        </body>
+
+        </html>
+
+        <?php
+
+    } catch (Exception $err) {
+
+        echo $err->getMessage();
+
     }
-
-    function invert_hesapla(){
-      var r_value = $('#r_value').val();
-      var g_value = $('#g_value').val();
-      var b_value = $('#b_value').val();
-
-      var r_value_new = 255-r_value;
-      var g_value_new = 255-g_value;
-      var b_value_new = 255-b_value;
-
-      $('.sonuc').text('RGB('+r_value_new+','+g_value_new+','+b_value_new+')');
-    }
-    $('.grayscale_form input').keyup(function(event) {
-      grayscale_hesapla();
-    });
-
-    $('.invert_form input').keyup(function(event) {
-      invert_hesapla();
-    });
-  });
-</script>
-</body>
-</html>
-<?php
-
-
-//print_r($image);
-} catch(Exception $err) {
-  // Handle errors
-  echo $err->getMessage();
-}
 
 else:
- echo 'Lütfen bir dosya gönderin';
+
+    echo 'Lütfen bir dosya gönderin';
 
 endif;
 
-
-
-
 ?>
-
